@@ -12,3 +12,8 @@ void setupStepperControl();
 void handleStepperLoop();
 bool isReferenceComplete(uint8_t channel);
 void triggerReference(uint8_t channel);
+
+void moveToMm(uint8_t channel, float targetMm);
+float getCurrentMm(uint8_t channel);
+
+void runStepperControl();

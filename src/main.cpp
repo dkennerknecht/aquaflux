@@ -1,19 +1,33 @@
 #include <Arduino.h>
-#include "web_interface.h"
+#include <SPIFFS.h>
+#include <WiFi.h>
+#include "config.h"
+#include "web_server.h"
 #include "stepper_control.h"
-#include "modbus_handler.h"
 
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
+    delay(500);
 
-  setupStepperControl();
-  setupWebInterface();
-  setupModbus();
+    if (!SPIFFS.begin(true)) {
+        Serial.println("SPIFFS konnte nicht gestartet werden!");
+        return;
+    }
 
-  Serial.println("Aquaflux system initialized.");
+    loadConfig();
+    setupStepperControl();      // enthält referenzieren in Reihenfolge
+    if (getConfig("wifiAp") == 1) {
+        WiFi.softAP("Aquaflux");
+        Serial.print("Access Point aktiv unter IP: ");
+        Serial.println(WiFi.softAPIP());
+        setupWebServer();
+    } else {
+        Serial.println("WLAN deaktiviert durch Konfiguration.");
+    }
+
+    Serial.println("Setup abgeschlossen.");
 }
 
 void loop() {
-  handleStepperLoop();
-  handleModbusLoop();
+    runStepperControl(); // falls benötigt für stepper.run()
 }

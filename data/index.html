@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aquaflux UI</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
+    h1 { font-size: 1.5rem; }
+    .channel { margin-bottom: 2rem; }
+    label { display: block; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Aquaflux Steuerung</h1>
+  <label>
+    Einheit:
+    <select id="unitSelect">
+      <option value="percent">%</option>
+      <option value="mm">mm</option>
+    </select>
+  </label>
+
+  <div class="channel" id="ch1">
+    <h2>Düse 1</h2>
+    <label>Position: <span class="pos">?</span></label>
+    <input type="range" min="0" max="100" step="0.1" class="slider" />
+    <input type="number" step="0.1" class="valueInput" />
+    <button class="refBtn">Referenzfahrt</button>
+    <label>Offset (mm): <input type="number" class="offsetInput" /></label>
+    <button class="offsetBtn">Offset setzen</button>
+    
+    <div>Status: <span class="status">Warte</span></div>
+  </div>
+
+  <div class="channel" id="ch2">
+    <h2>Düse 2</h2>
+    <label>Position: <span class="pos">?</span></label>
+    <input type="range" min="0" max="100" step="0.1" class="slider" />
+    <input type="number" step="0.1" class="valueInput" />
+    <button class="refBtn">Referenzfahrt</button>
+    <label>Offset (mm): <input type="number" class="offsetInput" /></label>
+    <button class="offsetBtn">Offset setzen</button>
+    
+    <div>Status: <span class="status">Warte</span></div>
+  </div>
+
+  <script>
+    let unitMode = "percent";
+
+    async function updateStatus() {
+      const res = await fetch('/status');
+      const data = await res.json();
+      unitMode = data.unit;
+      document.getElementById("unitSelect").value = unitMode;
+
+      [1,2].forEach(ch => {
+        const box = document.getElementById("ch" + ch);
+        const pos = data["pos" + ch].toFixed(1);
+        box.querySelector(".pos").textContent = pos + " " + (unitMode == "percent" ? "%" : "mm");
+        box.querySelector(".slider").value = pos;
+        box.querySelector(".valueInput").value = pos;
+        box.querySelector(".status").textContent = data["ref" + ch] ? "Referenziert" : "Nicht referenziert";
+        box.querySelector(".offsetInput").value = data["offset" + ch];
+      });
+    }
+
+    document.querySelectorAll(".slider").forEach((slider, idx) => {
+      slider.addEventListener("input", () => {
+        const box = document.getElementById("ch" + (idx+1));
+        box.querySelector(".valueInput").value = slider.value;
+      });
+    });
+
+    document.querySelectorAll(".valueInput").forEach((input, idx) => {
+      input.addEventListener("change", () => {
+        const val = input.value;
+        const ch = idx + 1;
+        fetch("/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `ch=${ch}&val=${val}`
+        });
+      });
+    });
+
+    document.querySelectorAll(".refBtn").forEach((btn, idx) => {
+      btn.addEventListener("click", () => {
+        const ch = idx + 1;
+        fetch("/reference", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `ch=${ch}`
+        });
+      });
+    });
+
+    document.getElementById("unitSelect").addEventListener("change", (e) => {
+      const mode = e.target.value;
+      fetch("/unit", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `mode=${mode}`
+      }).then(() => updateStatus());
+    });
+
+    
+    document.querySelectorAll(".offsetBtn").forEach((btn, idx) => {
+      btn.addEventListener("click", () => {
+        const ch = idx + 1;
+        const val = document.querySelectorAll(".offsetInput")[idx].value;
+        fetch("/offset", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `ch=${ch}&val=${val}`
+        });
+      });
+    });
+    
+    setInterval(updateStatus, 2000);
+    updateStatus();
+  </script>
+</body>
+</html>

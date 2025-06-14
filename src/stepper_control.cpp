@@ -1,4 +1,4 @@
-#include "../include/stepper_control.h"
+#include "stepper_control.h"
 #include <AccelStepper.h>
 
 #define ENDSTOP_PIN_1 14
@@ -104,4 +104,39 @@ void handleStepperLoop() {
       stepper2.run();
     }
   }
+}
+
+
+#include "config.h"
+
+const float STEPS_PER_MM = 8.0;         // TR8x2 (2 mm Steigung), 1/32 Step: 200 * 32 / 2mm
+const float HARD_LIMIT_MM = 30.0;
+
+void moveToMm(uint8_t channel, float targetMm) {
+  int softLimit = getConfig(channel == 1 ? "softLimit1" : "softLimit2");
+  int accel = getConfig(channel == 1 ? "accel1" : "accel2");
+
+  if (targetMm < 0 || targetMm > HARD_LIMIT_MM || targetMm > softLimit) {
+    Serial.printf("Ziel %.2fmm liegt außerhalb der erlaubten Grenzen!", targetMm);
+    return;
+  }
+
+  long targetSteps = targetMm * STEPS_PER_MM;
+  if (channel == 1) {
+    stepper1.setAcceleration(accel);
+    stepper1.moveTo(targetSteps);
+  } else if (channel == 2) {
+    stepper2.setAcceleration(accel);
+    stepper2.moveTo(targetSteps);
+  }
+}
+
+float getCurrentMm(uint8_t channel) {
+  long steps = (channel == 1) ? stepper1.currentPosition() : stepper2.currentPosition();
+  return steps / STEPS_PER_MM;
+}
+
+
+void runStepperControl() {
+  // hier würde ggf. stepper1.run() etc. zyklisch aufgerufen
 }
