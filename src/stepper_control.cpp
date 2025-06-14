@@ -1,17 +1,107 @@
-#include "stepper_control.h"
+#include "../include/stepper_control.h"
 #include <AccelStepper.h>
 
-AccelStepper stepper1(AccelStepper::DRIVER, 26, 25); // Beispielpins
-AccelStepper stepper2(AccelStepper::DRIVER, 33, 32);
+#define ENDSTOP_PIN_1 14
+#define ENDSTOP_PIN_2 27
+#define STEP_PIN_1 26
+#define DIR_PIN_1 25
+#define STEP_PIN_2 33
+#define DIR_PIN_2 32
+
+AccelStepper stepper1(AccelStepper::DRIVER, STEP_PIN_1, DIR_PIN_1);
+AccelStepper stepper2(AccelStepper::DRIVER, STEP_PIN_2, DIR_PIN_2);
+
+ReferenceState refState1 = REF_NOT_STARTED;
+ReferenceState refState2 = REF_NOT_STARTED;
+
+bool isReferencing = false;
+
+const float REF_FAST_SPEED = -800; // negative = Richtung auf Sensor zu
+const float REF_SLOW_SPEED = -200;
+const int REF_BACKOFF_STEPS = 200; // Zurückfahren nach Endstop-Treffer
+const int REF_OFFSET_STEPS = 100;  // Offset nach dem Sensor
 
 void setupStepperControl() {
+  pinMode(ENDSTOP_PIN_1, INPUT_PULLUP);
+  pinMode(ENDSTOP_PIN_2, INPUT_PULLUP);
+
   stepper1.setMaxSpeed(1000);
-  stepper1.setAcceleration(200);
+  stepper1.setAcceleration(300);
   stepper2.setMaxSpeed(1000);
-  stepper2.setAcceleration(200);
+  stepper2.setAcceleration(300);
+
+  triggerReference(1); // automatische Referenzfahrt
+}
+
+void triggerReference(uint8_t channel) {
+  if (channel == 1 && refState1 == REF_NOT_STARTED) {
+    stepper1.setSpeed(REF_FAST_SPEED);
+    refState1 = REF_IN_PROGRESS;
+    isReferencing = true;
+  } else if (channel == 2 && refState2 == REF_NOT_STARTED && refState1 == REF_DONE) {
+    stepper2.setSpeed(REF_FAST_SPEED);
+    refState2 = REF_IN_PROGRESS;
+    isReferencing = true;
+  }
+}
+
+bool isReferenceComplete(uint8_t channel) {
+  if (channel == 1) return refState1 == REF_DONE;
+  if (channel == 2) return refState2 == REF_DONE;
+  return false;
+}
+
+void handleReference(AccelStepper& stepper, uint8_t endstopPin, ReferenceState& state) {
+  static bool slowPhase = false;
+  static bool backingOff = false;
+  static long backoffTarget = 0;
+
+  if (state == REF_IN_PROGRESS) {
+    if (!slowPhase) {
+      if (digitalRead(endstopPin) == LOW) {
+        stepper.stop();
+        stepper.runToPosition(); // sicher anhalten
+        slowPhase = true;
+        stepper.setCurrentPosition(0);
+        stepper.setSpeed(REF_SLOW_SPEED);
+      } else {
+        stepper.runSpeed();
+      }
+    } else if (!backingOff) {
+      if (digitalRead(endstopPin) == LOW) {
+        stepper.stop();
+        stepper.runToPosition();
+        backoffTarget = stepper.currentPosition() + REF_BACKOFF_STEPS;
+        stepper.moveTo(backoffTarget);
+        backingOff = true;
+      } else {
+        stepper.runSpeed();
+      }
+    } else {
+      if (stepper.distanceToGo() == 0) {
+        stepper.setCurrentPosition(-REF_OFFSET_STEPS);
+        state = REF_DONE;
+        slowPhase = false;
+        backingOff = false;
+        isReferencing = false;
+      } else {
+        stepper.run();
+      }
+    }
+  }
 }
 
 void handleStepperLoop() {
-  stepper1.run();
-  stepper2.run();
+  if (refState1 == REF_IN_PROGRESS) {
+    handleReference(stepper1, ENDSTOP_PIN_1, refState1);
+  } else if (refState1 == REF_DONE && refState2 == REF_NOT_STARTED) {
+    triggerReference(2);
+  } else if (refState2 == REF_IN_PROGRESS) {
+    handleReference(stepper2, ENDSTOP_PIN_2, refState2);
+  } else {
+    if (!isReferencing) {
+      stepper1.run();
+      stepper2.run();
+    }
+  }
 }
