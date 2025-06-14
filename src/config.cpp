@@ -1,7 +1,10 @@
 #include "config.h"
 #include <Preferences.h>
+#include <EEPROM.h>
+
 
 Preferences preferences;
+ConfigData config;
 
 struct ConfigDefaults {
     const char* key;
@@ -21,11 +24,10 @@ ConfigDefaults defaults[] = {
 };
 
 void loadConfig() {
-    preferences.begin("aquaflux", false);
-    for (auto& def : defaults) {
-        if (!preferences.isKey(def.key)) {
-            preferences.putInt(def.key, def.defaultValue);
-        }
+    EEPROM.begin(sizeof(ConfigData));
+    EEPROM.get(0, config);
+    if (config.magic != CONFIG_MAGIC || config.version != CONFIG_VERSION) {
+        resetToDefaults();
     }
 }
 
@@ -45,12 +47,13 @@ void setConfig(const String& key, int value) {
 }
 
 void saveConfig() {
-    preferences.end(); // not strictly needed for putInt, but for cleanliness
-    preferences.begin("aquaflux", false);
+    EEPROM.put(0, config);
+    EEPROM.commit();
 }
 
-void resetConfig() {
-    preferences.clear();
+
+void resetToDefaults() {
+    config = ConfigData();
     saveConfig();
 }
 

@@ -11,6 +11,11 @@
   </style>
 </head>
 <body>
+
+  <div style="text-align:center; margin-bottom:1rem;">
+    <img src="aquaflux_logo_small.png" alt="AquaFlux Logo" style="max-width: 180px; height: auto;" />
+  </div>
+
   <h1>Aquaflux Steuerung</h1>
   <label>
     Einheit:
@@ -61,6 +66,14 @@
         box.querySelector(".valueInput").value = pos;
         box.querySelector(".status").textContent = data["ref" + ch] ? "Referenziert" : "Nicht referenziert";
         box.querySelector(".offsetInput").value = data["offset" + ch];
+        const error = data["error" + ch];
+        const errorBox = box.querySelector(".errorText");
+        errorBox.textContent = errorTextMap[error] || "";
+
+      if (data.motionHoldDelay !== undefined) {
+        motionInput.value = data.motionHoldDelay;
+      }
+
       });
     }
 
@@ -116,8 +129,45 @@
       });
     });
     
+    
+    const resetBtn = document.getElementById("resetBtn");
+    resetBtn.addEventListener("click", () => {
+      if (confirm("Wirklich alle Konfigurationswerte zurücksetzen?")) {
+        fetch("/reset", { method: "POST" })
+          .then(() => alert("Reset gesendet. Gerät startet ggf. neu."));
+      }
+    });
+
+    
+    const motionInput = document.getElementById("motionDelay");
+    const motionBtn = document.getElementById("setMotionBtn");
+
+    motionBtn.addEventListener("click", () => {
+      const val = motionInput.value;
+      fetch("/config?key=motionHoldDelay&val=" + val, { method: "POST" });
+    });
+
+    
+    const errorTextMap = {
+      0: "",
+      1: "Nicht referenziert",
+      2: "Softlimit überschritten",
+      3: "Bewegung blockiert"
+    };
+
     setInterval(updateStatus, 2000);
     updateStatus();
   </script>
+
+  <hr />
+  <button id="resetBtn" style="background:red;color:white;">Alle Einstellungen zurücksetzen</button>
+
+
+  <hr />
+  <label>Motion Hold Delay (ms):
+    <input type="number" id="motionDelay" min="0" step="100">
+    <button id="setMotionBtn">Setzen</button>
+  </label>
+
 </body>
 </html>

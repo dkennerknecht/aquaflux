@@ -34,3 +34,21 @@ String getConfigKey(int index);
 #define DNS_PORT 53
 
 #endif // CONFIG_H
+
+
+#define CONFIG_MAGIC 0xA5F1
+#define CONFIG_VERSION 1
+
+struct ConfigData {
+    uint16_t magic = CONFIG_MAGIC;
+    uint8_t version = CONFIG_VERSION;
+    float offset1 = 0.0f;
+    float offset2 = 0.0f;
+    float maxOpen1 = 20.0f;
+    float maxOpen2 = 20.0f;
+    float accel = 100.0f;
+    float decel = 100.0f;
+    uint16_t motionHoldMs = 1000;
+    bool watchdogEnabled = false;
+    uint16_t watchdogTimeout = 0;
+};
